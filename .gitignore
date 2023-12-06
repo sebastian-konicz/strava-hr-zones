@@ -160,4 +160,4 @@ cython_debug/
 #.idea/
 
 # streamlite enviroment variables
-secrets.toml
+.streamlit/secrets.toml
