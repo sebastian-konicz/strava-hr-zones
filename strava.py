@@ -65,10 +65,6 @@ def logout_header(header=None):
         _, col2, _, button = header
         base = button
 
-
-    with col2:
-        powered_by_strava_logo()
-
     if base.button("Log out"):
         js = f"window.location.href = '{APP_URL}'"
         html = f"<img src onerror=\"{js}\">"
