@@ -7,7 +7,8 @@ import streamlit as st
 import sweat
 from bokeh.models.widgets import Div
 
-APP_URL = st.secrets['APP_URL']
+# APP_URL = st.secrets['APP_URL']
+APP_URL = 'http://localhost:8501/'
 STRAVA_CLIENT_ID = st.secrets['STRAVA_CLIENT_ID']
 STRAVA_CLIENT_SECRET = st.secrets['STRAVA_CLIENT_SECRET']
 STRAVA_AUTHORIZATION_URL = "https://www.strava.com/oauth/authorize"
@@ -15,7 +16,7 @@ STRAVA_API_BASE_URL = "https://www.strava.com/api/v3"
 DEFAULT_ACTIVITY_LABEL = "NO_ACTIVITY_SELECTED"
 STRAVA_ORANGE = "#fc4c02"
 
-@st.cache(show_spinner=False)
+@st.cache_data(show_spinner=False)
 # encoding of the loaded image
 def load_image_as_base64(image_path):
     with open(image_path, "rb") as f:
@@ -84,7 +85,7 @@ def logged_in_title(strava_auth, header=None):
     col.markdown(f"*Welcome, {first_name} {last_name}!*")
 
 
-@st.cache(show_spinner=False, suppress_st_warning=True)
+@st.cache_data(show_spinner=False)
 def exchange_authorization_code(authorization_code):
     response = httpx.post(
         url="https://www.strava.com/oauth/token",
@@ -137,8 +138,8 @@ def header():
 
     return col1, col2, col3, strava_button
 
-
-@st.cache(show_spinner=False)
+# getting json data of 30 last activities
+@st.cache_data(show_spinner=False)
 def get_activities(auth, page=1):
     access_token = auth["access_token"]
     response = httpx.get(
@@ -153,7 +154,7 @@ def get_activities(auth, page=1):
 
     return response.json()
 
-
+#  activity lable for select box
 def activity_label(activity):
     if activity["name"] == DEFAULT_ACTIVITY_LABEL:
         return ""
@@ -166,7 +167,7 @@ def activity_label(activity):
 
 
 def select_strava_activity(auth):
-    col1, col2 = st.beta_columns([1, 3])
+    col1, col2 = st.columns([1, 3])
     with col1:
         page = st.number_input(
             label="Activities page",
@@ -199,11 +200,45 @@ def select_strava_activity(auth):
         unsafe_allow_html=True
     )
 
-
     return activity
 
 
-@st.cache(show_spinner=False, max_entries=30, allow_output_mutation=True)
+def select_strava_activities(auth):
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        page = st.number_input(
+            label="Activities page",
+            min_value=1,
+            help="The Strava API returns your activities in chunks of 30. Increment this field to go to the next page.",
+        )
+
+    with col2:
+        activities = get_activities(auth=auth, page=page)
+        if not activities:
+            st.info("This Strava account has no activities or you ran out of pages.")
+            st.stop()
+        default_activity = {"name": DEFAULT_ACTIVITY_LABEL, "start_date_local": ""}
+
+        activities = st.multiselect(
+            label="Select an activity",
+            options=[default_activity] + activities,
+            format_func=activity_label,
+        )
+
+    return activities
+
+
+@st.cache_data(show_spinner=False, max_entries=30)
 def download_activity(activity, strava_auth):
     with st.spinner(f"Downloading activity \"{activity['name']}\"..."):
         return sweat.read_strava(activity["id"], strava_auth["access_token"])
+
+@st.cache_data(show_spinner=False, max_entries=30)
+def download_activities(activities, strava_auth):
+    activities_number = len(activities)
+    activity_data_list = []
+    for activity_number in range(0, activities_number):
+        activity = sweat.read_strava(activities[activity_number]["id"], strava_auth["access_token"])
+        activity_data_list.append(activity)
+    with st.spinner(f"Downloading activities..."):
+        return activity_data_list
