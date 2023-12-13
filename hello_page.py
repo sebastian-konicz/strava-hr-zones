@@ -4,7 +4,9 @@ import streamlit as st
 import os
 import strava
 import pandas as pd
+import datetime as dt
 from pandas.api.types import is_numeric_dtype
+from pandas.io.json import json_normalize
 
 cwd = os.getcwd()
 
@@ -35,8 +37,13 @@ if strava_auth is None:
 
 # activity = strava.select_strava_activity(strava_auth)
 # data = strava.download_activity(activities, strava_auth)
+
+sport_list = strava.select_sport()
 activities = strava.select_strava_activities(strava_auth)
-data_list = strava.download_activities(activities, strava_auth)
+
+st.json(activities)
+
+data_list = strava.download_activities(activities, sport_list, strava_auth)
 
 # getting zones
 # seconds in hr zones
@@ -55,14 +62,33 @@ def zones(value):
 
 zone_aggregations = []
 for activity in data_list:
-    activity['seconds'] = 1
+    # calculating secconds diffrence based on datetime index
+    activity['seconds'] = activity.index.to_series().diff().dt.total_seconds()
+    activity['seconds'].fillna(0, inplace=True)
     activity['zone'] = activity.apply(lambda x: zones(x['heartrate']), axis=1)
-    zone_data = pd.DataFrame(activity.groupby("zone")['seconds'].sum()).reset_index()
+    zone_data = pd.DataFrame(activity.groupby("zone")['seconds'].sum()).reset_index().copy()
     zone_aggregations.append(zone_data)
 
 # concatenation of activites per zone
-concat = pd.concat(zone_aggregations)
+if len(zone_aggregations) != 0:
+    concat = pd.concat(zone_aggregations)
+    concat_aggr = pd.DataFrame(concat.groupby("zone")['seconds'].sum()).reset_index()
+    st.dataframe(concat_aggr)
 
-concat_aggr = pd.DataFrame(activity.groupby("zone")['seconds'].sum()).reset_index()
+    altair_chart = alt.Chart(concat_aggr).mark_bar(color=strava.STRAVA_ORANGE).encode(
+        x="zone",
+        y="seconds"
+    )
+    st.altair_chart(altair_chart, use_container_width=True)
+else:
+    pass
 
-st.dataframe(concat_aggr)
+# calculating secconds diffrence based on datetime index
+# data_list[0]['time_diff'] = data_list[0].index.to_series().diff().dt.total_seconds()
+# data_list[0]['time_diff'].fillna(0, inplace=True)
+
+# st.markdown(data_list[0].index)
+# for zone in zone_aggregations:
+#     st.dataframe(zone)
+
+# st.dataframe(concat_aggr)

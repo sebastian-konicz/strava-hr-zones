@@ -204,7 +204,7 @@ def select_strava_activity(auth):
 
 
 def select_strava_activities(auth):
-    col1, col2 = st.columns([1, 3])
+    col1, col2, col3 = st.columns([1, 1, 4])
     with col1:
         page = st.number_input(
             label="Activities page",
@@ -212,20 +212,46 @@ def select_strava_activities(auth):
             help="The Strava API returns your activities in chunks of 30. Increment this field to go to the next page.",
         )
 
+    container = st.container()
+
     with col2:
+        all = st.checkbox(label='Select all actvities')
+
+    with col3:
         activities = get_activities(auth=auth, page=page)
         if not activities:
             st.info("This Strava account has no activities or you ran out of pages.")
             st.stop()
         default_activity = {"name": DEFAULT_ACTIVITY_LABEL, "start_date_local": ""}
 
-        activities = st.multiselect(
-            label="Select an activity",
-            options=[default_activity] + activities,
-            format_func=activity_label,
-        )
+        if all:
+            activities = container.multiselect(
+                label="Select an activity",
+                options=[default_activity] + activities,
+                default=activities,
+                format_func=activity_label)
+        else:
+            activities = container.multiselect(
+                label="Select an activity",
+                options=[default_activity] + activities,
+                format_func=activity_label
+            )
+
+        # activities = st.multiselect(
+        #     label="Select an activity",
+        #     options=[default_activity] + activities,
+        #     format_func=activity_label,
+        # )
 
     return activities
+
+def select_sport():
+    sports = ['VirtualRide', 'Run', 'Workout']
+    sport_list = st.multiselect(
+        label="Chose sport",
+        options=sports
+    )
+    return sport_list
 
 
 @st.cache_data(show_spinner=False, max_entries=30)
@@ -234,11 +260,14 @@ def download_activity(activity, strava_auth):
         return sweat.read_strava(activity["id"], strava_auth["access_token"])
 
 @st.cache_data(show_spinner=False, max_entries=30)
-def download_activities(activities, strava_auth):
+def download_activities(activities, sport_list, strava_auth):
     activities_number = len(activities)
     activity_data_list = []
     for activity_number in range(0, activities_number):
-        activity = sweat.read_strava(activities[activity_number]["id"], strava_auth["access_token"])
-        activity_data_list.append(activity)
+        if activities[activity_number]["type"] in sport_list:
+            activity = sweat.read_strava(activities[activity_number]["id"], strava_auth["access_token"])
+            activity_data_list.append(activity)
+        else:
+            pass
     with st.spinner(f"Downloading activities..."):
         return activity_data_list
