@@ -33,7 +33,7 @@ def authorization_url():
             "redirect_uri": APP_URL,
             "response_type": "code",
             "approval_prompt": "auto",
-            "scope": "activity:read_all"
+            "scope": "activity:read_all,profile:read_all"
         }
     )
 
@@ -147,6 +147,18 @@ def get_activities(auth, page=1):
         params={
             "page": page,
         },
+        headers={
+            "Authorization": f"Bearer {access_token}",
+        },
+    )
+
+    return response.json()
+
+@st.cache_data(show_spinner=False)
+def get_hr_zones(auth, page):
+    access_token = auth["access_token"]
+    response = httpx.get(
+        url=f"{STRAVA_API_BASE_URL}/athlete/zones",
         headers={
             "Authorization": f"Bearer {access_token}",
         },

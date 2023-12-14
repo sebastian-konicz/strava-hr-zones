@@ -38,26 +38,35 @@ if strava_auth is None:
 # activity = strava.select_strava_activity(strava_auth)
 # data = strava.download_activity(activities, strava_auth)
 
+# getting activities
 sport_list = strava.select_sport()
 activities = strava.select_strava_activities(strava_auth)
-
-st.json(activities)
-
 data_list = strava.download_activities(activities, sport_list, strava_auth)
+
+zones = strava.get_hr_zones(strava_auth, page=1)
+st.json(zones)
+# zones = json_normalize(zones)
+
+st.markdown(zones["heart_rate"]["zones"])
+z1_max = zones["heart_rate"]["zones"][0]['max']
+z2_max = zones["heart_rate"]["zones"][1]['max']
+z3_max = zones["heart_rate"]["zones"][2]['max']
+z4_max = zones["heart_rate"]["zones"][3]['max']
+st.markdown(z1_max)
 
 # getting zones
 # seconds in hr zones
-def zones(value):
-    if value <= 110:
-        zone = 'endurance'
-    elif (value > 110) & (value <= 145):
-        zone = 'moderate'
-    elif (value > 145) & (value <= 163):
-        zone = 'temp'
-    elif (value > 163) & (value <= 181):
-        zone = 'treshold'
-    elif value > 181:
-        zone = 'anaerobic'
+def hr_zones(value, z1=z1_max, z2=z2_max, z3=z3_max, z4=z4_max):
+    if value <= z1:
+        zone = 'Z1: endurance'
+    elif (value > z1) & (value <= z2):
+        zone = 'Z2: moderate'
+    elif (value > z2) & (value <= z3):
+        zone = 'Z3: tempo'
+    elif (value > z3) & (value <= z4):
+        zone = 'Z4: treshold'
+    elif value > z4:
+        zone = 'Z5: anaerobic'
     return zone
 
 zone_aggregations = []
@@ -65,7 +74,7 @@ for activity in data_list:
     # calculating secconds diffrence based on datetime index
     activity['seconds'] = activity.index.to_series().diff().dt.total_seconds()
     activity['seconds'].fillna(0, inplace=True)
-    activity['zone'] = activity.apply(lambda x: zones(x['heartrate']), axis=1)
+    activity['zone'] = activity.apply(lambda x: hr_zones(x['heartrate']), axis=1)
     zone_data = pd.DataFrame(activity.groupby("zone")['seconds'].sum()).reset_index().copy()
     zone_aggregations.append(zone_data)
 
@@ -82,13 +91,3 @@ if len(zone_aggregations) != 0:
     st.altair_chart(altair_chart, use_container_width=True)
 else:
     pass
-
-# calculating secconds diffrence based on datetime index
-# data_list[0]['time_diff'] = data_list[0].index.to_series().diff().dt.total_seconds()
-# data_list[0]['time_diff'].fillna(0, inplace=True)
-
-# st.markdown(data_list[0].index)
-# for zone in zone_aggregations:
-#     st.dataframe(zone)
-
-# st.dataframe(concat_aggr)
