@@ -81,12 +81,17 @@ for activity in data_list:
 # concatenation of activites per zone
 if len(zone_aggregations) != 0:
     concat = pd.concat(zone_aggregations)
+    # getting combined time in seconds
     concat_aggr = pd.DataFrame(concat.groupby("zone")['seconds'].sum()).reset_index()
+    # calculating percent time
+    total_seconds = concat_aggr['seconds'].sum()
+    concat_aggr['percent'] = round((concat_aggr['seconds'] / total_seconds) * 100, 2)
+
     st.dataframe(concat_aggr)
 
     altair_chart = alt.Chart(concat_aggr).mark_bar(color=strava.STRAVA_ORANGE).encode(
         x="zone",
-        y="seconds"
+        y="percent"
     )
     st.altair_chart(altair_chart, use_container_width=True)
 else:
