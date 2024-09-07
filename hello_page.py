@@ -44,6 +44,7 @@ activities = strava.select_strava_activities(strava_auth)
 data_list = strava.download_activities(activities, sport_list, strava_auth)
 
 zones = strava.get_hr_zones(strava_auth, page=1)
+
 st.json(zones)
 # zones = json_normalize(zones)
 
