@@ -52,9 +52,11 @@ def login_header(header=None):
     base64_image = load_image_as_base64("./images/connect_with_strava.png")
     base.markdown(
         (
+            f"<div style='text-align: center;'>"
             f"<a href=\"{strava_authorization_url}\">"
             f"  <img alt=\"strava login\" src=\"data:image/png;base64,{base64_image}\" width=\"100%\">"
             f"</a>"
+            f"</div>"
         ),
         unsafe_allow_html=True,
     )
@@ -139,7 +141,7 @@ def header():
     return col1, col2, col3, strava_button
 
 # getting json data of 30 last activities
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=30)
 def get_activities(auth, page=1):
     access_token = auth["access_token"]
     response = httpx.get(
@@ -163,7 +165,6 @@ def get_hr_zones(auth, page):
             "Authorization": f"Bearer {access_token}",
         },
     )
-
     return response.json()
 
 #  activity lable for select box
@@ -178,93 +179,111 @@ def activity_label(activity):
     return f"{activity['name']} - {date_string} ({human_readable_date})"
 
 
-def select_strava_activity(auth):
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        page = st.number_input(
-            label="Activities page",
-            min_value=1,
-            help="The Strava API returns your activities in chunks of 30. Increment this field to go to the next page.",
-        )
+# def select_strava_activity(auth):
+#     col1, col2 = st.columns([1, 3])
+#     with col1:
+#         page = st.number_input(
+#             label="Activities page",
+#             min_value=1,
+#             help="The Strava API returns your activities in chunks of 30. Increment this field to go to the next page.",
+#         )
+#
+#     with col2:
+#         activities = get_activities(auth=auth, page=page)
+#         if not activities:
+#             st.info("This Strava account has no activities or you ran out of pages.")
+#             st.stop()
+#         default_activity = {"name": DEFAULT_ACTIVITY_LABEL, "start_date_local": ""}
+#
+#         activity = st.selectbox(
+#             label="Select an activity",
+#             options=[default_activity] + activities,
+#             format_func=activity_label,
+#         )
+#
+#     if activity["name"] == DEFAULT_ACTIVITY_LABEL:
+#         st.write("No activity selected")
+#         st.stop()
+#         return
+#
+#     activity_url = f"https://www.strava.com/activities/{activity['id']}"
+#
+#     st.markdown(
+#         f"<a href=\"{activity_url}\" style=\"color:{STRAVA_ORANGE};\">View on Strava</a>",
+#         unsafe_allow_html=True
+#     )
+#
+#     return activity
 
-    with col2:
-        activities = get_activities(auth=auth, page=page)
-        if not activities:
-            st.info("This Strava account has no activities or you ran out of pages.")
-            st.stop()
-        default_activity = {"name": DEFAULT_ACTIVITY_LABEL, "start_date_local": ""}
 
-        activity = st.selectbox(
-            label="Select an activity",
-            options=[default_activity] + activities,
-            format_func=activity_label,
-        )
-
-    if activity["name"] == DEFAULT_ACTIVITY_LABEL:
-        st.write("No activity selected")
-        st.stop()
-        return
-
-    activity_url = f"https://www.strava.com/activities/{activity['id']}"
-        
-    st.markdown(
-        f"<a href=\"{activity_url}\" style=\"color:{STRAVA_ORANGE};\">View on Strava</a>",
-        unsafe_allow_html=True
-    )
-
-    return activity
-
-
-def select_strava_activities(auth):
-    col1, col2, col3 = st.columns([1, 1, 4])
-    with col1:
-        page = st.number_input(
-            label="Activities page",
-            min_value=1,
-            help="The Strava API returns your activities in chunks of 30. Increment this field to go to the next page.",
-        )
+def select_strava_activities(auth, page):
+    col2, col3 = st.columns([1, 4])
 
     container = st.container()
 
     with col2:
         all = st.checkbox(label='Select all actvities')
 
-    with col3:
-        activities = get_activities(auth=auth, page=page)
-        if not activities:
-            st.info("This Strava account has no activities or you ran out of pages.")
-            st.stop()
-        default_activity = {"name": DEFAULT_ACTIVITY_LABEL, "start_date_local": ""}
+    # Sprawdzenie, czy dane dla danej strony są już dostępne w st.session_state
+    if 'activities' not in st.session_state or st.session_state['page'] != page:
+        st.session_state['activities'] = get_activities(auth=auth, page=page)
+        st.session_state['page'] = page
 
+    activities = st.session_state['activities']
+
+    if not activities:
+        st.info("This Strava account has no activities or you ran out of pages.")
+        st.stop()
+
+    default_activity = {"name": DEFAULT_ACTIVITY_LABEL, "start_date_local": ""}
+
+    with col3:
         if all:
-            activities = container.multiselect(
+            selected_activities = container.multiselect(
                 label="Select an activity",
                 options=[default_activity] + activities,
                 default=activities,
-                format_func=activity_label)
+                format_func=activity_label
+            )
         else:
-            activities = container.multiselect(
+            selected_activities = container.multiselect(
                 label="Select an activity",
                 options=[default_activity] + activities,
                 format_func=activity_label
             )
 
-        # activities = st.multiselect(
-        #     label="Select an activity",
-        #     options=[default_activity] + activities,
-        #     format_func=activity_label,
-        # )
+    return selected_activities
 
-    return activities
+def select_page():
+    page = st.number_input(
+        label="Activities page",
+        min_value=1,
+        help="The Strava API returns your activities in chunks of 30. Increment this field to go to the next page.",
+    )
+    return page
 
 def select_sport():
-    sports = ['VirtualRide', 'Run', 'Workout']
+    sports = ['VirtualRide', 'Run', 'Workout'] # change - aim is to creat sport list, based on pasted activities
     sport_list = st.multiselect(
         label="Chose sport",
         options=sports
     )
     return sport_list
 
+def select_sport_amd(activities):
+    activities_number = len(activities)
+    activity_data_types = []
+    for activity_number in range(0, activities_number):
+        type = activities[activity_number]["type"]
+        activity_data_types.append(type)
+    # unique list of acivities / sports
+    unique_sports = list(set(activity_data_types))
+
+    sport_list_amd = st.multiselect(
+        label="Chose sport",
+        options=unique_sports
+    )
+    return sport_list_amd
 
 @st.cache_data(show_spinner=False, max_entries=30)
 def download_activity(activity, strava_auth):

@@ -1,14 +1,7 @@
-import base64
 import altair as alt
 import streamlit as st
-import os
 import strava
 import pandas as pd
-import datetime as dt
-from pandas.api.types import is_numeric_dtype
-from pandas.io.json import json_normalize
-
-cwd = os.getcwd()
 
 st.set_page_config(
     page_title="Strava HR Zones",
@@ -18,18 +11,16 @@ st.set_page_config(
 strava_header = strava.header()
 
 st.markdown(
+    "<h1 style='text-align: center;'>Strava HR Zones Viewer </h1>", unsafe_allow_html=True
+)
+st.markdown(
     """
-    ### :heart: :running: Streamlit Strava HR Zones Viever :bicyclist: :heart:
+    ### :heart::running: :bicyclist::heart:
     This is a proof of concept of a [Streamlit](https://streamlit.io/) application that implements the [Strava API](https://developers.strava.com/) OAuth2 authentication flow.
-    The source code can be found at [my GitHub](https://github.com/sebastian-konicz/strava-hr-zones) and is licensed under an [MIT license](https://github.com/sebastian-konicz/strava-hr-zones/blob/main/LICENSE).
-
-    Contact me if you have any suggestions: sebastian.konicz@gmail.com.
-    
-    Project inspired and partialy based on project of Aart Goossens  [GitHub](https://github.com/AartGoossens/streamlit-activity-viewer)
     """
 )
 
-strava_auth = strava.authenticate(header=strava_header, stop_if_unauthenticated=False)
+strava_auth = strava.authenticate(header=strava.header(), stop_if_unauthenticated=False)
 
 if strava_auth is None:
     st.markdown("Click the \"Connect with Strava\" button at the top to login with your Strava account and get started.")
@@ -39,12 +30,14 @@ if strava_auth is None:
 # data = strava.download_activity(activities, strava_auth)
 
 # getting activities
-sport_list = strava.select_sport()
-activities = strava.select_strava_activities(strava_auth)
-data_list = strava.download_activities(activities, sport_list, strava_auth)
+page = strava.select_page()
+print(page)
+activities = strava.select_strava_activities(strava_auth, page)
+# sport_list = strava.select_sport()
+sport_list_amd = strava.select_sport_amd(activities)
+data_list = strava.download_activities(activities, sport_list_amd, strava_auth)
 
 zones = strava.get_hr_zones(strava_auth, page=1)
-
 st.json(zones)
 # zones = json_normalize(zones)
 
@@ -73,7 +66,7 @@ def hr_zones(value, z1=z1_max, z2=z2_max, z3=z3_max, z4=z4_max):
 zone_aggregations = []
 for activity in data_list:
     # calculating secconds diffrence based on datetime index
-    activity['seconds'] = activity.index.to_series().diff().dt.total_seconds()
+    activity['seconds'] = activity.index.to_series().diff().dt.total_seconds().fillna(0)
     activity['seconds'].fillna(0, inplace=True)
     activity['zone'] = activity.apply(lambda x: hr_zones(x['heartrate']), axis=1)
     zone_data = pd.DataFrame(activity.groupby("zone")['seconds'].sum()).reset_index().copy()
@@ -88,7 +81,7 @@ if len(zone_aggregations) != 0:
     total_seconds = concat_aggr['seconds'].sum()
     concat_aggr['percent'] = round((concat_aggr['seconds'] / total_seconds) * 100, 2)
 
-    st.dataframe(concat_aggr)
+    st.dataframe(concat_aggr, hide_index=True)
 
     altair_chart = alt.Chart(concat_aggr).mark_bar(color=strava.STRAVA_ORANGE).encode(
         x="zone",
@@ -97,3 +90,12 @@ if len(zone_aggregations) != 0:
     st.altair_chart(altair_chart, use_container_width=True)
 else:
     pass
+
+st.markdown(
+    """
+    ---------------------------
+    \nThe source code can be found at [my GitHub](https://github.com/sebastian-konicz/strava-hr-zones) and is licensed under an [MIT license](https://github.com/sebastian-konicz/strava-hr-zones/blob/main/LICENSE).
+    \nContact me if you have any suggestions: sebastian.konicz@gmail.com.
+    \nProject inspired and partialy based on  Aart Goossens's project [GitHub](https://github.com/AartGoossens/streamlit-activity-viewer)
+    """
+)
