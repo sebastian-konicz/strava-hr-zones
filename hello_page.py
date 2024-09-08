@@ -37,37 +37,48 @@ activities = strava.select_strava_activities(strava_auth, page)
 sport_list_amd = strava.select_sport_amd(activities)
 data_list = strava.download_activities(activities, sport_list_amd, strava_auth)
 
+# setting zone values
 zones = strava.get_hr_zones(strava_auth, page=1)
-st.json(zones)
-# zones = json_normalize(zones)
-
-st.markdown(zones["heart_rate"]["zones"])
 z1_max = zones["heart_rate"]["zones"][0]['max']
 z2_max = zones["heart_rate"]["zones"][1]['max']
 z3_max = zones["heart_rate"]["zones"][2]['max']
 z4_max = zones["heart_rate"]["zones"][3]['max']
-st.markdown(z1_max)
+
+# st.json(zones)
+# st.markdown(zones["heart_rate"]["zones"])
+# st.markdown(z1_max)
+
+# zones dataframe
+data = {
+    'zone': ['Z1', 'Z2', 'Z3', 'Z4', 'Z5'],
+    'zone name': ['Endurance', 'Moderate', 'Tempo', 'Threshold', 'Anaerobic'],
+    'zone hr range': [f'< {z1_max}', f'{z1_max} - {z2_max} ', f'{z2_max} - {z3_max}', f'{z3_max} - {z4_max}', f'> {z4_max}']
+}
+
+zones_df = pd.DataFrame(data)
+# st.dataframe(zones_df, hide_index=True, use_container_width=False)
 
 # getting zones
 # seconds in hr zones
 def hr_zones(value, z1=z1_max, z2=z2_max, z3=z3_max, z4=z4_max):
     if value <= z1:
-        zone = 'Z1: endurance'
+        zone = 'Z1'
     elif (value > z1) & (value <= z2):
-        zone = 'Z2: moderate'
+        zone = 'Z2'
     elif (value > z2) & (value <= z3):
-        zone = 'Z3: tempo'
+        zone = 'Z3'
     elif (value > z3) & (value <= z4):
-        zone = 'Z4: treshold'
+        zone = 'Z4'
     elif value > z4:
-        zone = 'Z5: anaerobic'
+        zone = 'Z5'
     return zone
 
 zone_aggregations = []
 for activity in data_list:
     # calculating secconds diffrence based on datetime index
     activity['seconds'] = activity.index.to_series().diff().dt.total_seconds().fillna(0)
-    activity['seconds'].fillna(0, inplace=True)
+    # activity['seconds'].fillna(0, inplace=True) # chek if redundant
+
     activity['zone'] = activity.apply(lambda x: hr_zones(x['heartrate']), axis=1)
     zone_data = pd.DataFrame(activity.groupby("zone")['seconds'].sum()).reset_index().copy()
     zone_aggregations.append(zone_data)
@@ -75,19 +86,42 @@ for activity in data_list:
 # concatenation of activites per zone
 if len(zone_aggregations) != 0:
     concat = pd.concat(zone_aggregations)
+
     # getting combined time in seconds
     concat_aggr = pd.DataFrame(concat.groupby("zone")['seconds'].sum()).reset_index()
+    zones_df = zones_df.merge(concat_aggr, how='left', on='zone')
+
+    # fillng blank data
+    zones_df['seconds'].fillna(value=0, inplace=True)
+
     # calculating percent time
-    total_seconds = concat_aggr['seconds'].sum()
-    concat_aggr['percent'] = round((concat_aggr['seconds'] / total_seconds) * 100, 2)
+    total_seconds = zones_df['seconds'].sum()
+    zones_df['percent'] = round((zones_df['seconds'] / total_seconds) * 100, 2)
 
-    st.dataframe(concat_aggr, hide_index=True)
+    # formating data
+    zones_df['time'] = pd.to_timedelta(zones_df['seconds'], unit='s').apply(lambda x: str(x))
 
-    altair_chart = alt.Chart(concat_aggr).mark_bar(color=strava.STRAVA_ORANGE).encode(
-        x="zone",
-        y="percent"
-    )
-    st.altair_chart(altair_chart, use_container_width=True)
+    # restricting dataframe to useful columns in correct order
+    zones_df = zones_df[['zone', 'zone name', 'zone hr range', 'time', 'seconds', 'percent']]
+    zones_df.rename(columns={'seconds': "time [seconds]", "percent": "% share"}, inplace=True)
+
+    st.dataframe(zones_df, hide_index=True, use_container_width=False)
+
+    # wykres
+    altair_chart = alt.Chart(zones_df).mark_bar(color=strava.STRAVA_ORANGE).encode(
+        y="zone",
+        x="% share"
+    ).properties(height=500)  # zwiększenie wysokości wykresu
+
+    # tekst na wykresie
+    text = altair_chart.mark_text(
+        align='left',
+        baseline='middle',
+        dx=3 #przesuniecie w prawo o 3 piksele
+    ).encode(text='% share:Q')
+
+    st.altair_chart(altair_chart + text, use_container_width=True)
+
 else:
     pass
 
