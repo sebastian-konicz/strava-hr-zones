@@ -7,8 +7,8 @@ import streamlit as st
 import sweat
 from bokeh.models.widgets import Div
 
-# APP_URL = st.secrets['APP_URL']
-APP_URL = 'http://localhost:8501/'
+APP_URL = st.secrets['APP_URL']
+# APP_URL = 'http://localhost:8501/'
 STRAVA_CLIENT_ID = st.secrets['STRAVA_CLIENT_ID']
 STRAVA_CLIENT_SECRET = st.secrets['STRAVA_CLIENT_SECRET']
 STRAVA_AUTHORIZATION_URL = "https://www.strava.com/oauth/authorize"
